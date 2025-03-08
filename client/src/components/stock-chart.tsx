@@ -8,7 +8,7 @@ import {
   Tooltip,
   ReferenceLine,
   Line,
-  LineChart,
+  ComposedChart,
 } from "recharts";
 import { format } from "date-fns";
 import { type StockData } from "@shared/schema";
@@ -52,7 +52,7 @@ export function StockChart({
 
   return (
     <ResponsiveContainer width="100%" height={500}>
-      <AreaChart
+      <ComposedChart
         data={chartData}
         margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
       >
@@ -89,9 +89,15 @@ export function StockChart({
                   <div>Close: ${data.close.toFixed(2)}</div>
                   {showSMA && (
                     <>
-                      <div>SMA50: ${data.sma50?.toFixed(2) ?? "N/A"}</div>
-                      <div>SMA100: ${data.sma100?.toFixed(2) ?? "N/A"}</div>
-                      <div>SMA200: ${data.sma200?.toFixed(2) ?? "N/A"}</div>
+                      <div style={{ color: "#2196F3" }}>
+                        SMA50: ${data.sma50?.toFixed(2) ?? "N/A"}
+                      </div>
+                      <div style={{ color: "#FF9800" }}>
+                        SMA100: ${data.sma100?.toFixed(2) ?? "N/A"}
+                      </div>
+                      <div style={{ color: "#F44336" }}>
+                        SMA200: ${data.sma200?.toFixed(2) ?? "N/A"}
+                      </div>
                     </>
                   )}
                   <div>Volume: {data.volume.toLocaleString()}</div>
@@ -113,11 +119,8 @@ export function StockChart({
               type="monotone"
               dataKey="sma50"
               stroke="#2196F3"
-              // dot={false}
+              dot={false}
               name="SMA 50"
-              // isAnimationActive={false}
-              // strokeWidth={2}
-              // connectNulls
             />
             <Line
               type="monotone"
@@ -125,9 +128,6 @@ export function StockChart({
               stroke="#FF9800"
               dot={false}
               name="SMA 100"
-              isAnimationActive={false}
-              strokeWidth={2}
-              connectNulls
             />
             <Line
               type="monotone"
@@ -135,9 +135,6 @@ export function StockChart({
               stroke="#F44336"
               dot={false}
               name="SMA 200"
-              isAnimationActive={false}
-              strokeWidth={2}
-              connectNulls
             />
           </>
         )}
@@ -154,7 +151,7 @@ export function StockChart({
               }}
             />
           ))}
-      </AreaChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
