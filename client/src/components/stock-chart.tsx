@@ -1,14 +1,16 @@
 import { useMemo } from "react";
 import {
   ResponsiveContainer,
-  AreaChart,
-  Area,
   XAxis,
   YAxis,
   Tooltip,
   ReferenceLine,
   Line,
-  ComposedChart,
+  LineChart,
+  Legend,
+  CartesianGrid,
+  Customized,
+  Rectangle,
 } from "recharts";
 import { format } from "date-fns";
 import { type StockData } from "@shared/schema";
@@ -22,11 +24,69 @@ interface StockChartProps {
   smaPeriods?: number[]; // 表示したい移動平均線の期間を指定
 }
 
+// カスタムロウソク足コンポーネント
+const CustomizedCandlestick = (props: any) => {
+  const { formattedGraphicalItems } = props;
+  
+  // 高値と安値のポイントを取得
+  const highPoints = formattedGraphicalItems[0]?.props?.points || [];
+  const lowPoints = formattedGraphicalItems[1]?.props?.points || [];
+  const openPoints = formattedGraphicalItems[2]?.props?.points || [];
+  const closePoints = formattedGraphicalItems[3]?.props?.points || [];
+
+  return highPoints.map((point: any, index: number) => {
+    if (!point || !lowPoints[index] || !openPoints[index] || !closePoints[index]) {
+      return null;
+    }
+
+    const { x } = point;
+    const highY = point.y;
+    const lowY = lowPoints[index].y;
+    const openY = openPoints[index].y;
+    const closeY = closePoints[index].y;
+    
+    // ロウソク足の本体（始値と終値の間）
+    const bodyY = Math.min(openY, closeY);
+    const bodyHeight = Math.abs(closeY - openY);
+    const isIncreasing = closeY < openY; // 株価チャートでは上に行くほどY座標は小さくなる
+    
+    // ロウソク足の太さ
+    const candleWidth = 4;
+    
+    // 上下の髭の太さ
+    const wickWidth = 1;
+
+    return (
+      <g key={index}>
+        {/* 上下のヒゲ */}
+        <line
+          x1={x}
+          y1={highY}
+          x2={x}
+          y2={lowY}
+          stroke="#85929e"
+          strokeWidth={wickWidth}
+        />
+        
+        {/* ロウソク足の本体 */}
+        <Rectangle
+          x={x - candleWidth / 2}
+          y={bodyY}
+          width={candleWidth}
+          height={bodyHeight || 1} // 始値と終値が同じ場合は最小高さを1にする
+          fill={isIncreasing ? "#4CAF50" : "#F44336"}
+          stroke={isIncreasing ? "#4CAF50" : "#F44336"}
+        />
+      </g>
+    );
+  });
+};
+
 export function StockChart({
   data,
   showFibonacci = true,
   showSMA = true,
-  smaPeriods = [25, 50, 75, 200],
+  smaPeriods = [7, 14, 21, 50],
 }: StockChartProps) {
   const { high, low, fiboLevels, smaData } = useMemo(() => {
     const high = Math.max(...data.map((d) => d.high));
@@ -78,24 +138,18 @@ export function StockChart({
     ...Object.fromEntries(
       smaPeriods.map((period, i) => [
         `sma${period}`,
-        ["#2196F3", "#FF9800", "#F44336"][i],
+        ["#2196F3", "#FF9800", "#F44336", "#4CAF50"][i % 4],
       ])
     ),
-    // 必要に応じて追加
   };
 
   return (
     <ResponsiveContainer width="100%" height={500}>
-      <ComposedChart
+      <LineChart
         data={chartData}
         margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
       >
-        <defs>
-          <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
-            <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
-          </linearGradient>
-        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
         <XAxis
           dataKey="timestamp"
           tickFormatter={(timestamp) =>
@@ -133,13 +187,18 @@ export function StockChart({
             );
           }}
         />
-        <Area
-          type="monotone"
-          dataKey="close"
-          stroke="#8884d8"
-          fillOpacity={1}
-          fill="url(#chartFill)"
-        />
+        <Legend />
+        
+        {/* ロウソク足のためのデータライン（非表示） */}
+        <Line type="monotone" dataKey="high" stroke="none" dot={false} />
+        <Line type="monotone" dataKey="low" stroke="none" dot={false} />
+        <Line type="monotone" dataKey="open" stroke="none" dot={false} />
+        <Line type="monotone" dataKey="close" stroke="none" dot={false} />
+        
+        {/* カスタムロウソク足 */}
+        <Customized component={<CustomizedCandlestick />} />
+        
+        {/* 移動平均線 */}
         {showSMA &&
           smaPeriods.map((period) => (
             <Line
@@ -152,6 +211,8 @@ export function StockChart({
               connectNulls={true}
             />
           ))}
+          
+        {/* フィボナッチライン */}
         {showFibonacci &&
           fiboLevels.map((level, i) => (
             <ReferenceLine
@@ -165,7 +226,7 @@ export function StockChart({
               }}
             />
           ))}
-      </ComposedChart>
+      </LineChart>
     </ResponsiveContainer>
   );
 }
