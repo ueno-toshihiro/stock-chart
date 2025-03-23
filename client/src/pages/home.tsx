@@ -34,11 +34,7 @@ export default function Home() {
             <Label htmlFor="fibonacci">フィボナッチレベル</Label>
           </div>
           <div className="flex items-center space-x-2">
-            <Switch
-              id="sma"
-              checked={showSMA}
-              onCheckedChange={setShowSMA}
-            />
+            <Switch id="sma" checked={showSMA} onCheckedChange={setShowSMA} />
             <Label htmlFor="sma">移動平均線</Label>
           </div>
           <PeriodSelector period={period} onChange={setPeriod} />
@@ -55,10 +51,11 @@ export default function Home() {
               <div className="text-lg text-muted-foreground">Loading...</div>
             </div>
           ) : stockData ? (
-            <StockChart 
-              data={stockData} 
+            <StockChart
+              data={stockData}
               showFibonacci={showFibonacci}
               showSMA={showSMA}
+              symbol={symbol}
             />
           ) : null}
         </CardContent>

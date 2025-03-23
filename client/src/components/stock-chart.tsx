@@ -27,7 +27,7 @@ interface StockChartProps {
 // カスタムロウソク足コンポーネント
 const CustomizedCandlestick = (props: any) => {
   const { formattedGraphicalItems } = props;
-  
+
   // 高値と安値のポイントを取得
   const highPoints = formattedGraphicalItems[0]?.props?.points || [];
   const lowPoints = formattedGraphicalItems[1]?.props?.points || [];
@@ -35,7 +35,12 @@ const CustomizedCandlestick = (props: any) => {
   const closePoints = formattedGraphicalItems[3]?.props?.points || [];
 
   return highPoints.map((point: any, index: number) => {
-    if (!point || !lowPoints[index] || !openPoints[index] || !closePoints[index]) {
+    if (
+      !point ||
+      !lowPoints[index] ||
+      !openPoints[index] ||
+      !closePoints[index]
+    ) {
       return null;
     }
 
@@ -44,15 +49,15 @@ const CustomizedCandlestick = (props: any) => {
     const lowY = lowPoints[index].y;
     const openY = openPoints[index].y;
     const closeY = closePoints[index].y;
-    
+
     // ロウソク足の本体（始値と終値の間）
     const bodyY = Math.min(openY, closeY);
     const bodyHeight = Math.abs(closeY - openY);
     const isIncreasing = closeY < openY; // 株価チャートでは上に行くほどY座標は小さくなる
-    
+
     // ロウソク足の太さ
     const candleWidth = 4;
-    
+
     // 上下の髭の太さ
     const wickWidth = 1;
 
@@ -67,7 +72,7 @@ const CustomizedCandlestick = (props: any) => {
           stroke="#85929e"
           strokeWidth={wickWidth}
         />
-        
+
         {/* ロウソク足の本体 */}
         <Rectangle
           x={x - candleWidth / 2}
@@ -82,26 +87,76 @@ const CustomizedCandlestick = (props: any) => {
   });
 };
 
+import { useState, useEffect } from "react";
+
+interface StockDataWithSymbol extends StockData {
+  symbol: string;
+}
+
 export function StockChart({
   data,
+  symbol,
   showFibonacci = true,
   showSMA = true,
   smaPeriods = [7, 14, 21, 50],
-}: StockChartProps) {
+}: StockChartProps & { symbol: string }) {
+  const [historicalData, setHistoricalData] = useState<StockData[]>([]);
+  console.log(">>>>> historicalData ", historicalData);
+
+  // 過去のデータを取得
+  useEffect(() => {
+    if (data.length > 0 && symbol) {
+      const endDate = new Date(data[0].timestamp * 1000);
+      const startDate = new Date(endDate);
+      startDate.setFullYear(startDate.getFullYear() - 1); // 1年前のデータを取得
+
+      fetch(
+        `/api/stocks/${symbol}/history?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`
+      )
+        .then((res) => res.json())
+        .then((historicalData) => {
+          setHistoricalData(historicalData);
+        })
+        .catch((error) =>
+          console.error("Error fetching historical data:", error)
+        );
+    }
+  }, [data, symbol]);
+
+  // 現在のデータと過去のデータを結合
+  const combinedData = useMemo(() => {
+    const uniqueData = new Map();
+
+    // 過去のデータをマップに追加
+    historicalData.forEach((item: StockData) => {
+      uniqueData.set(item.timestamp, item);
+    });
+
+    // 現在のデータで上書き
+    data.forEach((item: StockData) => {
+      uniqueData.set(item.timestamp, item);
+    });
+
+    // タイムスタンプでソート
+    return Array.from(uniqueData.values()).sort(
+      (a, b) => a.timestamp - b.timestamp
+    );
+  }, [data, historicalData]);
+
   const { high, low, fiboLevels, smaData } = useMemo(() => {
-    const high = Math.max(...data.map((d) => d.high));
-    const low = Math.min(...data.map((d) => d.low));
+    const high = Math.max(...combinedData.map((d) => d.high));
+    const low = Math.min(...combinedData.map((d) => d.low));
     const levels = calculateFibonacciLevels(high, low);
 
     // 移動平均線の計算
-    const closes = data.map((d) => d.close);
+    const closes = combinedData.map((d) => d.close);
 
     // SMAの計算を期間ごとに行い、データに対して安全に計算
     const smaData: Record<string, (number | null)[]> = {};
 
     smaPeriods.forEach((period) => {
-      // 計算結果の配列（データ長と同じ）を初期化
-      const smaValues = new Array(data.length).fill(null);
+      // 計算結果の配列（combinedDataの長さと同じ）を初期化
+      const smaValues = new Array(combinedData.length).fill(null);
 
       // 十分なデータがある場合のみ計算
       if (closes.length >= period) {
@@ -110,7 +165,7 @@ export function StockChart({
 
         // 計算結果をデータ長に合わせて配置
         // （計算開始位置は period - 1 から）
-        for (let i = period - 1; i < data.length; i++) {
+        for (let i = period - 1; i < combinedData.length; i++) {
           smaValues[i] = calculatedSMA[i - (period - 1)];
         }
       }
@@ -188,16 +243,16 @@ export function StockChart({
           }}
         />
         <Legend />
-        
+
         {/* ロウソク足のためのデータライン（非表示） */}
         <Line type="monotone" dataKey="high" stroke="none" dot={false} />
         <Line type="monotone" dataKey="low" stroke="none" dot={false} />
         <Line type="monotone" dataKey="open" stroke="none" dot={false} />
         <Line type="monotone" dataKey="close" stroke="none" dot={false} />
-        
+
         {/* カスタムロウソク足 */}
         <Customized component={<CustomizedCandlestick />} />
-        
+
         {/* 移動平均線 */}
         {showSMA &&
           smaPeriods.map((period) => (
@@ -211,7 +266,7 @@ export function StockChart({
               connectNulls={true}
             />
           ))}
-          
+
         {/* フィボナッチライン */}
         {showFibonacci &&
           fiboLevels.map((level, i) => (

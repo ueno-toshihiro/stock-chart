@@ -1,20 +1,19 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { Pool } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pkg from 'pg';
+const { Pool } = pkg;
 import * as schema from "../shared/schema";
 import dotenv from "dotenv";
 
 // 環境変数のロード
 dotenv.config();
 
-// 環境変数からデータベースURLを取得
-const connectionString = process.env.DATABASE_URL!;
-
-if (!connectionString) {
-  throw new Error("DATABASE_URL環境変数が設定されていません。");
-}
-
-// プールを作成
-const pool = new Pool({ connectionString });
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
 
 // drizzleインスタンスを作成
 export const db = drizzle(pool, { schema });

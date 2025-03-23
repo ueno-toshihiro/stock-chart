@@ -7,6 +7,29 @@ import { insertStockSchema, insertFavoriteSchema } from "@shared/schema";
 import fetch from "node-fetch";
 import debug from "debug";
 
+import { StockPriceService } from "../service/stockPriceService";
+
+interface YahooFinanceResponse {
+  chart: {
+    result: [
+      {
+        timestamp: number[];
+        indicators: {
+          quote: [
+            {
+              open: number[];
+              high: number[];
+              low: number[];
+              close: number[];
+              volume: number[];
+            }
+          ];
+        };
+      }
+    ];
+  };
+}
+
 // デバッグロガーの作成
 const routesLogger = debug("app:routes");
 const stockLogger = debug("app:stock");
@@ -83,11 +106,67 @@ export async function registerRoutes(app: Express) {
       );
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${range}&interval=${interval}`;
       const response = await fetch(url);
-      const data = await response.json();
+      const data = (await response.json()) as YahooFinanceResponse;
+      const result = data.chart.result[0];
+      const quote = result.indicators.quote[0];
+
+      const chartData = result.timestamp.map((timestamp, i) => ({
+        timestamp,
+        open: quote.open[i],
+        high: quote.high[i],
+        low: quote.low[i],
+        close: quote.close[i],
+        volume: quote.volume[i],
+      }));
+
+      const stockPriceService = new StockPriceService();
+      // データをStorageに保存
+      try {
+        await stockPriceService.saveStockPrices(symbol, chartData);
+        routesLogger("Successfully saved stock prices for", symbol);
+      } catch (error) {
+        routesLogger("Error saving stock prices:", error);
+        throw error;
+      }
+
       res.json(data);
     } catch (error) {
       routesLogger("Yahoo Finance API error:", error);
       res.status(500).json({ message: "Failed to fetch stock data" });
+    }
+  });
+
+  // 保存された株価データの取得
+  app.get("/api/stocks/:symbol/history", async (req, res) => {
+    try {
+      const { symbol } = req.params;
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        res.status(400).json({ message: "startDate and endDate are required" });
+        return;
+      }
+
+      routesLogger("Fetching historical data:", {
+        symbol,
+        startDate,
+        endDate,
+        startDateObj: new Date(startDate as string),
+        endDateObj: new Date(endDate as string)
+      });
+
+      const stockPriceService = new StockPriceService();
+      const historicalData = await stockPriceService.getStockPrices(
+        symbol,
+        new Date(startDate as string),
+        new Date(endDate as string)
+      );
+
+      routesLogger(`Found ${historicalData.length} records`);
+      res.json(historicalData);
+    } catch (error) {
+      routesLogger("Error fetching historical data:", error);
+      res.status(500).json({ message: "Failed to fetch historical data" });
     }
   });
 

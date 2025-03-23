@@ -1,6 +1,7 @@
 import { defineConfig } from "drizzle-kit";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import { Pool } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/node-postgres";
+import pkg from 'pg';
+const { Pool } = pkg;
 import * as schema from "./shared/schema";
 
 if (!process.env.DATABASE_URL) {
